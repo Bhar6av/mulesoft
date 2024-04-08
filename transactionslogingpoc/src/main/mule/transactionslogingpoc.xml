@@ -66,6 +66,7 @@ output application/json
 			</ee:message>
 		</ee:transform>
 		<flow-ref doc:name="Final response Logger" doc:id="962387fb-4969-4c43-963b-71cc98b5115c" name="finalResponseLogger" target="finalresponse "/>
+		<logger level="INFO" doc:name="Logger" doc:id="d4487382-d910-42d1-b2e5-e66ea1a9afca" message="END"/>
 	</flow>
 	<flow name="rquestLogger" doc:id="77d08127-d589-4ba6-8bca-ca30babf8f1e" >
 		<logger level="INFO" doc:name="request" doc:id="110635fc-180d-47d6-8774-819049583b27" message="Start #[payload] #[Transaction_ID: vars.Transaction_ID]" />
