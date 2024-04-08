@@ -1,0 +1,8 @@
+http:
+  port : "8081"
+
+db:
+  host : "sql.freedb.tech"
+  username : "freedb_user6"
+  password : "w7EyAEEHFubhVA$"
+  dbname: "freedb_demodata"

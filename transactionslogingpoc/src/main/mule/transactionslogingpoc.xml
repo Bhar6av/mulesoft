@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="transactionslogingpocFlow" doc:id="da132025-d2c5-45d1-8398-23c73ace0f30" >
+		<http:listener doc:name="Listener" doc:id="51087009-bdda-405b-b8c7-6d8de4b044b0" path="/employess" config-ref="HTTP_Listener_config">
+			<http:response >
+				<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Transaction_ID" : vars.Transaction_ID
+}]]]></http:headers>
+			</http:response>
+			<http:error-response >
+				<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Transaction_ID" : vars.Transaction_ID
+}]]]></http:headers>
+			</http:error-response>
+		</http:listener>
+		<set-variable value="#[attributes.headers.Transaction_ID]" doc:name="Transaction_ID" doc:id="7f8ab883-415e-446a-a0d2-94ff0739400d" variableName="Transaction_ID" />
+		<flow-ref doc:name="requestLogger" doc:id="a7f6caa8-9c6b-421b-92e0-326d19807f41" name="rquestLogger" target="requestLogger"/>
+		<ee:transform doc:name="Transform Message" doc:id="513d9143-aca4-45cf-aa80-ac775faa5ff0" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{ Order_id: payload.orderid,
+Customer_name: payload.customername,
+Product: payload.prod_name,
+Quantity: payload.quantity,
+Phonenumber: payload.mobilenumber,
+Email:payload.email,
+Address:payload.address
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="outbound Request Logger" doc:id="f6c7357b-b53a-46bf-8fef-4a5371ae19be" name="outboundRequestLogger" target="outboundrequest"/>
+		<db:insert doc:name="Insert orders Record" doc:id="88b0c5ae-4296-4dd8-8920-e29cd4c129ad" config-ref="Database_Config">
+			<db:sql ><![CDATA[INSERT INTO recordorders(  Order_id,Customer_name,Product,Quantity, Phonenumber, Email, Address ) 
+VALUES (:Order_id  ,:Customer_name, :Product,:Quantity, :Phonenumber, :Email, :Address );]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"Order_id":payload.Order_id,
+	"Customer_name" : payload.Customer_name,
+	"Product" : payload.Product,
+	"Quantity": payload.Quantity,
+	"Phonenumber" : payload.Phonenumber,
+	"Email"  : payload.Email,
+	"Address" : payload.Address
+}]]]></db:input-parameters>
+		</db:insert>
+		<flow-ref doc:name="outboundResponseLogger" doc:id="79eff7a3-3d03-4fe4-bdba-842a6c42699f" name="outboundResponseLogger" target="outboundResponse"/>
+		<ee:transform doc:name="Transform Message" doc:id="131012bf-792d-4208-b055-33fc59e6b272" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message" : "Record Created Sucessfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="Final response Logger" doc:id="962387fb-4969-4c43-963b-71cc98b5115c" name="finalResponseLogger" target="finalresponse "/>
+	</flow>
+	<flow name="rquestLogger" doc:id="77d08127-d589-4ba6-8bca-ca30babf8f1e" >
+		<logger level="INFO" doc:name="request" doc:id="110635fc-180d-47d6-8774-819049583b27" message="Start #[payload] #[Transaction_ID: vars.Transaction_ID]" />
+		<ee:transform doc:name="Transform Message" doc:id="831b0ccb-8358-47b5-b84e-1554d6b7cb89">
+			<ee:message>
+				<ee:set-payload ><![CDATA[%dw 2.0
+output text/plain
+---
+payload.^raw as String
+]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+			</ee:variables>
+		</ee:transform>
+		<db:insert doc:name="Insert into Transaction" doc:id="587d29d9-98ff-461c-830f-c87f2e66a78d" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO pocLogsTable ( Message,Transaction_ID, Logger ) 
+VALUES (:Message,:Transaction_ID ,:Logger);]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    "Message": payload,
+	"Transaction_ID" : vars.Transaction_ID,
+	"Logger": "request"
+	
+}]]]></db:input-parameters>
+		</db:insert>
+		<logger level="INFO" doc:name="Logger" doc:id="5ede9664-9df9-4cd0-bbe1-d04e469bffe7" message="#[flow.name] -- log Registerd"/>
+	</flow>
+	<flow name="outboundRequestLogger" doc:id="6b3e5496-b84b-4f90-9de0-d5c469d2a25a" >
+		<logger level="INFO" doc:name="outboundrequest" doc:id="45264532-9b2c-42a3-bd01-061c08b15566" message="Start #[payload] #[Transaction_ID: vars.Transaction_ID]" />
+		<ee:transform doc:name="Transform Message" doc:id="d3aea3cc-30a4-4ebf-a77a-555e28f93104">
+			<ee:message>
+				<ee:set-payload ><![CDATA[%dw 2.0
+output text/plain
+---
+payload.^raw as String
+]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+			</ee:variables>
+		</ee:transform>
+		<db:insert doc:name="Insert into Transaction" doc:id="099eda53-4369-43e9-9d57-8e56b18c2529" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO pocLogsTable ( Message,Transaction_ID, Logger ) 
+VALUES (:Message,:Transaction_ID ,:Logger);]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    "Message": payload,
+	"Transaction_ID" : vars.Transaction_ID,
+	"Logger": "outbound_Request"
+	
+}]]]></db:input-parameters>
+		</db:insert>
+		<logger level="INFO" doc:name="Logger" doc:id="a640eba4-c429-4e47-bc0e-3f98cb39fc38" message="#[flow.name] -- log Registerd"/>
+	
+</flow>
+	<flow name="outboundResponseLogger" doc:id="6dce4517-9ff7-4cad-a436-4b725e59d8b7" >
+		<logger level="INFO" doc:name="oubtbound Response" doc:id="de56810d-a371-490b-a325-9332aea603a2" message="Start #[payload] #[Transaction_ID: vars.Transaction_ID]" />
+		<ee:transform doc:name="Transform Message" doc:id="496fd73f-d21f-45c2-a15c-94285bb6c611">
+			<ee:message>
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload
+]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+			</ee:variables>
+		</ee:transform>
+		<ee:transform doc:name="Transform Message" doc:id="9ad2fa3b-d59e-417b-a2f8-9e11e231802e" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output text/plain
+---
+payload.^raw as String]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<db:insert doc:name="Insert into Transaction" doc:id="4c87dd91-1a73-4736-97ac-468bbaad576a" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO pocLogsTable ( Message,Transaction_ID, Logger ) 
+VALUES (:Message,:Transaction_ID ,:Logger);]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    "Message": payload,
+	"Transaction_ID" : vars.Transaction_ID,
+	"Logger": "outbound_Response"
+	
+}]]]></db:input-parameters>
+		</db:insert>
+		<logger level="INFO" doc:name="Logger" doc:id="28982009-55ac-413b-8b9d-96687883d3fe" message="#[flow.name] -- log Registerd"/>
+	
+</flow>
+	<flow name="finalResponseLogger" doc:id="c0e3c1a3-6607-4dc6-9842-134933ddd517" >
+		<logger level="INFO" doc:name="finalResponse" doc:id="80e823a4-f7c1-4392-a96d-b478a558556c" message=" #[payload] #[Transaction_ID: vars.Transaction_ID]" />
+		<ee:transform doc:name="Transform Message" doc:id="8746a57c-d7eb-450b-bece-c5bd182096f2">
+			<ee:message>
+				<ee:set-payload ><![CDATA[%dw 2.0
+output text/plain
+---
+payload.^raw as String
+]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="startapi" ><![CDATA[%dw 2.0
+output appliaction/java
+---
+payload.^raw as String]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<db:insert doc:name="Insert into Transaction" doc:id="afe1cf82-5871-470d-aa50-3fea3448d81b" config-ref="Database_Config">
+			<db:sql><![CDATA[INSERT INTO pocLogsTable ( Message,Transaction_ID, Logger ) 
+VALUES (:Message,:Transaction_ID ,:Logger);]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    "Message": payload,
+	"Transaction_ID" : vars.Transaction_ID,
+	"Logger": "final_Response"
+	
+}]]]></db:input-parameters>
+		</db:insert>
+		<logger level="INFO" doc:name="Logger" doc:id="ad0f52e6-5c6d-42c6-a03a-2bde525154a2" message="#[flow.name] -- log Registerd"/>
+	
+</flow>
+</mule>
